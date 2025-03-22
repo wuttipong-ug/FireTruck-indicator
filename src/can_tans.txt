@@ -1,0 +1,103 @@
+#include "config.h"
+#include "eXoCAN.h"
+
+HardwareSerial mySerial(USART1);
+eXoCAN can;
+
+#define sw1 PA0  // ปุ่มเพิ่มค่า index1
+#define sw2 PA1  // ปุ่มลดค่า index1
+#define sw3 PA2  // ปุ่มเพิ่มค่า index2
+#define sw4 PA3  // ปุ่มลดค่า index2
+
+const int txMsgID = 0x069;
+uint8_t txData[8] = {0x00, 0x0F, 0x00, 0x0F, 0xAB, 0xCD, 0xEF, 0xFF};
+const uint32_t txDly = 2000;
+uint32_t lastSendTime = 0;
+int index1 = 0;
+int index2 = 0;
+
+void blink() {
+    digitalWrite(PC13, LOW);
+    delay(50);
+    digitalWrite(PC13, HIGH);
+    delay(50);
+}
+
+void sendCANMessage() {
+    txData[0] = index1;
+    txData[1] = index2;
+
+    mySerial.print("📤 Sending CAN ID: 0x");
+    mySerial.print(txMsgID, HEX);
+    mySerial.print(" | Data: ");
+    for (int i = 0; i < 8; i++) {
+        mySerial.print("0x");
+        if (txData[i] < 0x10) mySerial.print("0");
+        mySerial.print(txData[i], HEX);
+        mySerial.print(" ");
+    }
+    mySerial.println();
+
+    bool sent = false;
+    for (int i = 0; i < 3; i++) {  // ลองส่งซ้ำสูงสุด 3 ครั้ง
+        sent = can.transmit(txMsgID, txData, sizeof(txData));
+        if (sent) break;
+        mySerial.println("❌ Failed! Retrying...");
+        delay(50);
+    }
+
+    if (sent) {
+        mySerial.println("✅ CAN Message Sent!");
+        blink();
+    } else {
+        mySerial.println("🚨 Critical Error: Resetting CAN Bus...");
+        can.begin(STD_ID_LEN, BR250K, PORTA_11_12_XCVR);
+    }
+}
+
+void setup() {
+    mySerial.begin(115200);
+    pinMode(PC13, OUTPUT);
+    pinMode(sw1, INPUT_PULLUP);
+    pinMode(sw2, INPUT_PULLUP);
+    pinMode(sw3, INPUT_PULLUP);
+    pinMode(sw4, INPUT_PULLUP);
+    digitalWrite(PC13, HIGH);
+    
+    can.begin(STD_ID_LEN, BR250K, PORTA_11_12_XCVR);
+    mySerial.println("✅ CAN Bus Initialized");
+    // can.filterMask16Init(0, 0x070, 0x7FF, 0, 0);
+}
+
+void loop() {
+    if (digitalRead(sw1) == LOW) { // เพิ่มค่า index1
+        if (index1 < 15) {
+            index1++;
+            sendCANMessage();
+            delay(200);
+        }
+    }
+    if (digitalRead(sw2) == LOW) { // ลดค่า index1
+        if (index1 > 0) {
+            index1--;
+            sendCANMessage();
+            delay(200);
+        }
+    }
+    if (digitalRead(sw3) == LOW) { // เพิ่มค่า index2
+        if (index2 < 15) {
+            index2++;
+            sendCANMessage();
+            delay(200);
+        }
+    }
+    if (digitalRead(sw4) == LOW) { // ลดค่า index2
+        if (index2 > 0) {
+            index2--;
+            sendCANMessage();
+            delay(200);
+        }
+    }
+}
+
+

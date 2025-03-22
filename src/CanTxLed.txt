@@ -1,0 +1,127 @@
+#include "config.h"
+#include "eXoCAN.h"
+
+
+// กำหนดขาของแต่ละชุด TPIC6B595
+#define DATA1  PA0  // SER (Data) สำหรับชุดที่ 1
+#define CLOCK1 PA1  // SRCK (Clock) สำหรับชุดที่ 1
+#define LATCH1 PA2  // RCLK (Latch) สำหรับชุดที่ 1
+
+#define DATA2  PA3  // SER (Data) สำหรับชุดที่ 2
+#define CLOCK2 PA4  // SRCK (Clock) สำหรับชุดที่ 2
+#define LATCH2 PA5  // RCLK (Latch) สำหรับชุดที่ 2
+
+// เก็บสถานะ LED ของแต่ละชุด
+uint32_t ledState1 = 0; // ชุดที่ 1 (32 ดวง)
+uint32_t ledState2 = 0; // ชุดที่ 2 (24 ดวง)
+
+HardwareSerial mySerial(USART1);
+eXoCAN can;  // Initialize eXoCAN object
+
+const int txMsgID = 0x070;  
+uint8_t txData[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+void shiftOut595(uint8_t dataPin, uint8_t clockPin, uint8_t latchPin, uint32_t data, uint8_t numRegisters) {
+    digitalWrite(latchPin, LOW);
+    for (int i = (numRegisters * 8) - 1; i >= 0; i--) {
+        digitalWrite(clockPin, LOW);
+        digitalWrite(dataPin, (data >> i) & 0x01);
+        digitalWrite(clockPin, HIGH);
+    }
+    digitalWrite(latchPin, HIGH);
+}
+
+// ฟังก์ชันเปิด LED ดวงเดียวและดับดวงอื่นทั้งหมด
+void setLED(uint8_t group, uint8_t index) {
+    uint32_t *ledState;
+    uint8_t dataPin, clockPin, latchPin;
+    uint8_t numRegisters;
+
+    if (group == 1) {
+        if (index >= 32) {
+            mySerial.println("[ERROR] LED index out of range (ชุดที่ 1 มี 32 ดวงเท่านั้น!)");
+            return;
+        }
+        ledState = &ledState1;
+        dataPin = DATA1;
+        clockPin = CLOCK1;
+        latchPin = LATCH1;
+        numRegisters = 4;
+    } 
+    else if (group == 2) {
+        if (index >= 24) {
+            mySerial.println("[ERROR] LED index out of range (ชุดที่ 2 มี 24 ดวงเท่านั้น!)");
+            return;
+        }
+        ledState = &ledState2;
+        dataPin = DATA2;
+        clockPin = CLOCK2;
+        latchPin = LATCH2;
+        numRegisters = 3;
+    } 
+    else {
+        mySerial.println("[ERROR] ไม่พบชุดที่ต้องการ");
+        return;
+    }
+
+    *ledState = (1UL << index); // เปิดเฉพาะดวงที่เลือก และปิดดวงอื่นทั้งหมด
+
+    mySerial.print("Group ");
+    mySerial.print(group);
+    mySerial.print(" | LED ");
+    mySerial.print(index);
+    mySerial.println(" ON | Others OFF");
+    
+    shiftOut595(dataPin, clockPin, latchPin, *ledState, numRegisters);
+}
+void setup() {
+    mySerial.begin(115200);
+    // pinMode(LED_PIN, OUTPUT);
+    pinMode(PC13, OUTPUT);
+    digitalWrite(PC13, HIGH);
+    
+    // Initialize CAN with standard ID length, 250kbps baud rate, using PA11/PA12 pins
+    can.begin(STD_ID_LEN, BR250K, PORTA_11_12_XCVR);
+    mySerial.println("✅ CAN Bus Initialized - Listening for Messages...");
+    mySerial.println("=== TPIC6B595 Debug Mode ===");
+
+    pinMode(DATA1, OUTPUT); pinMode(CLOCK1, OUTPUT); pinMode(LATCH1, OUTPUT);
+    pinMode(DATA2, OUTPUT); pinMode(CLOCK2, OUTPUT); pinMode(LATCH2, OUTPUT);
+}
+
+void loop() {
+    volatile int rxID;        // Change uint32_t to volatile int
+    volatile int rxFltrIdx;   // Extra argument required by eXoCAN
+    uint8_t rxData[8];        // Array to store received CAN data
+
+    // Check for incoming CAN messages
+    if (can.receive(rxID, rxFltrIdx, rxData)) {
+      if(rxID == 0x069){
+        mySerial.print("📥 Received CAN ID: 0x");
+        mySerial.print(rxID, HEX);
+        mySerial.print(" | Data: ");
+
+        // Print received data as hex values
+        for (int i = 0; i < 8; i++) {
+            mySerial.print("0x");
+            if (rxData[i] < 0x10) mySerial.print("0");  // Add leading zero if necessary
+            mySerial.print(rxData[i], HEX);
+            mySerial.print(" ");
+
+        }
+
+        mySerial.println();  // New line for better readability
+        setLED(1, rxData[0]); // เปิดทีละดวงในชุดที่ 1
+        setLED(2, rxData[1]); // เปิดทีละดวงในชุดที่ 2
+        bool sent = can.transmit(txMsgID, txData, sizeof(txData));
+
+        if (sent) {
+          mySerial.println("✅ CAN Message Sent!");
+        //   bink();
+        } else {
+          mySerial.println("❌ Failed to Send CAN Message!");
+        }
+      }
+    }
+
+}

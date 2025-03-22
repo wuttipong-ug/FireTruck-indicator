@@ -1,0 +1,59 @@
+#include "config.h"
+#include "eXoCAN.h"
+
+
+HardwareSerial mySerial(USART1);
+
+eXoCAN can;  // Initialize eXoCAN object
+
+
+
+void bink(){
+  digitalWrite(PC13, LOW);
+  delay(50);
+  digitalWrite(PC13, HIGH);
+  delay(50);
+  digitalWrite(PC13, LOW);
+  delay(50);
+  digitalWrite(PC13, HIGH);
+  delay(50);
+
+}
+
+void setup() {
+    mySerial.begin(115200);
+    // pinMode(LED_PIN, OUTPUT);
+    pinMode(PC13, OUTPUT);
+    digitalWrite(PC13, HIGH);
+
+    // Initialize CAN with standard ID length, 250kbps baud rate, using PA11/PA12 pins
+    can.begin(STD_ID_LEN, BR250K, PORTA_11_12_XCVR);
+    mySerial.println("✅ CAN Bus Initialized - Listening for Messages...");
+}
+
+void loop() {
+    volatile int rxID;        // Change uint32_t to volatile int
+    volatile int rxFltrIdx;   // Extra argument required by eXoCAN
+    uint8_t rxData[8];        // Array to store received CAN data
+
+    // Check for incoming CAN messages
+    if (can.receive(rxID, rxFltrIdx, rxData)) {
+      if(rxID == 0x069){
+        bink();
+        mySerial.print("📥 Received CAN ID: 0x");
+        mySerial.print(rxID, HEX);
+        mySerial.print(" | Data: ");
+
+        // Print received data as hex values
+        for (int i = 0; i < 8; i++) {
+            mySerial.print("0x");
+            if (rxData[i] < 0x10) mySerial.print("0");  // Add leading zero if necessary
+            mySerial.print(rxData[i], HEX);
+            mySerial.print(" ");
+        }
+
+        mySerial.println();  // New line for better readability
+      }
+    }
+    
+}
