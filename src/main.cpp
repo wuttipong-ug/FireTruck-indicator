@@ -1,9 +1,21 @@
 #include <Arduino.h>
-#include "config.h"
-#include "eXoCAN.h"
+#include <HardwareSerial.h>
+
+#include "stm32f1xx_hal.h"
+#include "stm32f1xx_hal_can.h"  // Ensure this is included
+
+#include "STM32_CAN.h"
+
+#define Main_CAN_ID 0x069
+
+unsigned long previousTime = 0;
+
 
 HardwareSerial mySerial(USART1);
-eXoCAN can;
+
+STM32_CAN Can( CAN1, DEF );  //Use PA11/12 pins for CAN1.
+
+static CAN_message_t CAN_RX_msg;
 
 // โครงสร้างข้อมูลของ TPIC6B595
 struct TPIC6B595 {
@@ -14,8 +26,8 @@ struct TPIC6B595 {
 };
 
 // กำหนดขาให้แต่ละกลุ่ม
-TPIC6B595 groupA = {PA0, PA1, PA2, 0};  // 4 TPIC6B595 = 32 บิต
-TPIC6B595 groupB = {PA3, PA4, PA5, 0};  // 3 TPIC6B595 = 24 บิต
+TPIC6B595 groupB = {PA0, PA1, PA2, 0};  // 4 TPIC6B595 = 32 บิต
+TPIC6B595 groupA = {PA3, PA4, PA5, 0};  // 3 TPIC6B595 = 24 บิต
 
 void blink() {
     digitalWrite(PC13, LOW);
@@ -48,8 +60,6 @@ void setup() {
     digitalWrite(PC13, HIGH);
 
     // Initialize CAN
-    can.begin(STD_ID_LEN, BR250K, PORTA_11_12_XCVR);
-    mySerial.println("✅ CAN Bus Initialized - Listening for Messages...");
 
     // ตั้งค่าขาเป็น OUTPUT
     pinMode(groupA.dataPin, OUTPUT);
@@ -62,31 +72,41 @@ void setup() {
 
     digitalWrite(groupA.latchPin, LOW);
     digitalWrite(groupB.latchPin, LOW);
+
+    Can.begin();
+    Can.setBaudRate(250000);  //250KBPS
 }
 
 void loop() {
-    volatile int rxID;
-    volatile int rxFltrIdx;
-    uint8_t rxData[8];
 
-    // รับข้อมูล CAN ID 0x069
-    if (can.receive(rxID, rxFltrIdx, rxData)) {
-        if (rxID == 0x069) {
-            blink();
-            mySerial.print("📥 Received CAN ID: 0x");
-            mySerial.print(rxID, HEX);
-            mySerial.print(" | Data: ");
+  if (CAN_RX_msg.id == Main_CAN_ID) {              //  CAN Recevier INDICATOR 
+    unsigned long currentTime2 = millis();
+    if (currentTime2 - previousTime >= 50) {
+      previousTime = currentTime2;  //  biuk
+      digitalToggle(PC13);
 
-            for (int i = 0; i < 8; i++) {
-                mySerial.print("0x");
-                if (rxData[i] < 0x10) mySerial.print("0");
-                mySerial.print(rxData[i], HEX);
-                mySerial.print(" ");
-            }
-            mySerial.println();
-
-            setLED(groupA, 4, rxData[1]);  // Group A (32-bit)
-            setLED(groupB, 3, rxData[0]);  // Group B (24-bit)
-        }
     }
+    setLED(groupA, 4, CAN_RX_msg.buf[0]);
+    setLED(groupB, 3, CAN_RX_msg.buf[1]);
+    
+  }
+
+
+
+
+
+
+
+   
+  for(int i = 0; i<24; i++){
+    setLED(groupB, 3, i);  // Group A (32-bit)
+    
+    delay(100);
+    
+  }
+  for(int i = 0; i<32; i++){
+  setLED(groupA, 4, i);  // Group B (24-bit)
+  mySerial.println(i);
+  delay(50);
+  }
 }
