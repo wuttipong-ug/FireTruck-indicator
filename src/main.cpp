@@ -79,34 +79,24 @@ void setup() {
 
 void loop() {
 
-  if (CAN_RX_msg.id == Main_CAN_ID) {              //  CAN Recevier INDICATOR 
-    unsigned long currentTime2 = millis();
-    if (currentTime2 - previousTime >= 50) {
-      previousTime = currentTime2;  //  biuk
-      digitalToggle(PC13);
+  if (Can.read(CAN_RX_msg)) {
+    if (CAN_RX_msg.id == 0x069) {
 
+        setLED(groupA, 4, CAN_RX_msg.buf[0]);
+        setLED(groupB, 3, CAN_RX_msg.buf[1]);
+        mySerial.println(CAN_RX_msg.buf[0]);
     }
-    setLED(groupA, 4, CAN_RX_msg.buf[0]);
-    setLED(groupB, 3, CAN_RX_msg.buf[1]);
-    
   }
 
-
-
-
-
-
-
-   
-  for(int i = 0; i<24; i++){
-    setLED(groupB, 3, i);  // Group A (32-bit)
+//   for(int i = 0; i<24; i++){
+//     setLED(groupB, 3, i);  // Group A (32-bit)
     
-    delay(100);
+//     delay(100);
     
-  }
-  for(int i = 0; i<32; i++){
-  setLED(groupA, 4, i);  // Group B (24-bit)
-  mySerial.println(i);
-  delay(50);
-  }
+//   }
+//   for(int i = 0; i<32; i++){
+//   setLED(groupA, 4, i);  // Group B (24-bit)
+//   mySerial.println(i);
+//   delay(200);
+//   }
 }
