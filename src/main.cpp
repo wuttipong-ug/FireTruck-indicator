@@ -50,7 +50,8 @@ void shiftOutTPIC(TPIC6B595 &group, uint8_t numChips) {
 // ฟังก์ชันควบคุม LED ทีละดวง
 void setLED(TPIC6B595 &group, uint8_t numChips, uint8_t index) {
     if (index >= numChips * 8) return; // ป้องกันค่าเกินบิต
-    group.ledState = (uint32_t)1 << index; // เปิดเฉพาะ LED ที่เลือก
+    // group.ledState = (uint32_t)1 << index; // เปิดเฉพาะ LED ที่เลือก
+    group.ledState = (1UL << (index + 1)) - 1;          // เปิด LED ทุกดวงตั้งแต่ 0 ถึง index
     shiftOutTPIC(group, numChips);
 }
 
@@ -84,15 +85,13 @@ void loop() {
 
         setLED(groupA, 4, CAN_RX_msg.buf[0]);
         setLED(groupB, 3, CAN_RX_msg.buf[1]);
-        mySerial.println(CAN_RX_msg.buf[0]);
+        // mySerial.println(CAN_RX_msg.buf[0]);
     }
   }
 
 //   for(int i = 0; i<24; i++){
 //     setLED(groupB, 3, i);  // Group A (32-bit)
-    
 //     delay(100);
-    
 //   }
 //   for(int i = 0; i<32; i++){
 //   setLED(groupA, 4, i);  // Group B (24-bit)
