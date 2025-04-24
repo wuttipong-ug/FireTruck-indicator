@@ -74,6 +74,24 @@ void setup() {
     Can.begin();
     Can.setBaudRate(250000);  //250KBPS
     mySerial.println("Setuped..");
+    for(int i = 0; i<24; i++){
+      setLED(groupB, 3, i);  // Group A (32-bit)
+      delay(20);
+    }
+    for(int i = 0; i<24; i++){
+      setLED(groupB, 3, 23-i);  // Group A (32-bit)
+      delay(20);
+    }
+    for(int i = 0; i<32; i++){
+    setLED(groupA, 4, i);  // Group B (24-bit)
+    mySerial.println(i);
+    delay(20);
+    }
+    for(int i = 0; i<32; i++){
+      setLED(groupA, 4, 31-i);  // Group B (24-bit)
+      mySerial.println(i);
+      delay(20);
+    }
 }
 
 void loop() {
@@ -86,12 +104,10 @@ void loop() {
         setLED(groupB, 3, CAN_RX_msg.buf[1]);
         // mySerial.println(CAN_RX_msg.buf[0]);
     }
-  }else{
-
   }
 
   unsigned long currentTime2 = millis();
-  if (currentTime2 - previousTime2 >= 500) {
+  if (currentTime2 - previousTime2 >= 1000) {
     previousTime2 = currentTime2;  //  biuk
     digitalToggle(LED_Buik);
     CAN_TX_msg.id = (0x121);
@@ -122,23 +138,7 @@ void loop() {
   }
   
   
-
-//   for(int i = 0; i<24; i++){
-//     setLED(groupB, 3, i);  // Group A (32-bit)
-//     delay(100);
-//   }
-//   for(int i = 0; i<32; i++){
-//   setLED(groupA, 4, i);  // Group B (24-bit)
-//   mySerial.println(i);
-//   delay(200);
-//   }
-
-
   delay(5);
-//   mySerial.println(".....");
-
-
-
 
 
 }
